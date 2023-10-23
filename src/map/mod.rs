@@ -1,7 +1,9 @@
 use bevy::{
+    pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap},
     prelude::{shape::Plane, *},
     utils::HashSet,
 };
+use bevy_rapier3d::prelude::{Collider, ComputedColliderShape};
 
 use crate::assets::AssetHandles;
 
@@ -18,13 +20,26 @@ impl Plugin for MapPlugin {
 }
 
 fn init(mut commands: Commands) {
+    commands.insert_resource(DirectionalLightShadowMap { size: 4096 });
+
+    commands.insert_resource(AmbientLight { color: Color::WHITE, brightness: 0.8 });
+
     commands.spawn(DirectionalLightBundle {
-        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::PI / 4.)),
+        transform: Transform::default().looking_at(Vec3::new(-3., -3., 1.), Vec3::Y),
         directional_light: DirectionalLight {
             color: Color::WHITE,
-            illuminance: 10000.,
+            illuminance: 5000.,
+            shadows_enabled: true,
             ..default()
         },
+        cascade_shadow_config: CascadeShadowConfigBuilder {
+            num_cascades: 5,
+            minimum_distance: 0.1,
+            maximum_distance: 100.0,
+            first_cascade_far_bound: 4.0,
+            overlap_proportion: 0.2,
+        }
+        .into(),
         ..default()
     });
 }
@@ -57,8 +72,8 @@ fn spawn_new_chunks(
         let x = pos.x / CHUNK_SIZE;
         let z = pos.z / CHUNK_SIZE;
 
-        for x in (x - scn.radius_x).floor() as i32..(x + scn.radius_x).ceil() as i32 {
-            for z in (z - scn.radius_y).floor() as i32..(z + scn.radius_y).ceil() as i32 {
+        for x in (x - scn.radius_x).floor() as i32..=(x + scn.radius_x).ceil() as i32 {
+            for z in (z - scn.radius_y).floor() as i32..=(z + scn.radius_y).ceil() as i32 {
                 queue.insert((x, z));
             }
         }
@@ -80,21 +95,20 @@ fn populate_new_chunks(
     mut commands: Commands,
 ) {
     for (chunk, entity) in chunks.iter() {
-        commands.entity(entity).insert(PbrBundle {
-            transform: Transform::from_translation(Vec3::new(
-                chunk.x as f32 * CHUNK_SIZE,
-                0.,
-                chunk.z as f32 * CHUNK_SIZE,
-            )),
-            mesh: meshes.add(
-                Plane {
-                    size: CHUNK_SIZE,
-                    subdivisions: 0,
-                }
-                .into(),
-            ),
-            material: assets.ground_material.clone(),
-            ..default()
-        });
+        let mesh = Plane { size: CHUNK_SIZE, subdivisions: 0 }.into();
+
+        commands.entity(entity).insert((
+            Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh).unwrap(),
+            PbrBundle {
+                transform: Transform::from_translation(Vec3::new(
+                    chunk.x as f32 * CHUNK_SIZE,
+                    0.,
+                    chunk.z as f32 * CHUNK_SIZE,
+                )),
+                mesh: meshes.add(mesh),
+                material: assets.ground_material.clone(),
+                ..default()
+            },
+        ));
     }
 }
