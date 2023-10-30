@@ -1,28 +1,31 @@
-#![feature(option_get_or_insert_default)]
-
 mod assets;
 mod camera;
+mod hud;
 mod map;
 mod player;
 mod utils;
+mod world_tile;
 
 use bevy::prelude::*;
+use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_tnua::prelude::*;
 
-use self::{camera::CameraPlugin, map::MapPlugin, player::PlayerPlugin};
+use self::{camera::CameraPlugin, hud::HudPlugin, map::MapPlugin, player::PlayerPlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins((
+            EguiPlugin,
             RapierPhysicsPlugin::<NoUserData>::default(),
             TnuaControllerPlugin,
             TnuaRapier3dPlugin,
         ))
-        .add_plugins((CameraPlugin, PlayerPlugin, MapPlugin))
+        .add_plugins((CameraPlugin, HudPlugin, PlayerPlugin, MapPlugin))
         .add_systems(PreStartup, assets::init)
         .add_systems(Startup, init)
+        .add_systems(Update, bevy::window::close_on_esc)
         .run();
 }
 

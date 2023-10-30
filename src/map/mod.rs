@@ -1,12 +1,13 @@
 use bevy::{
     pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap},
-    prelude::{shape::Plane, *},
+    prelude::*,
     utils::HashSet,
 };
 use bevy_rapier3d::prelude::{Collider, ComputedColliderShape};
 
 use crate::assets::AssetHandles;
 
+/// Width and length of a chunk, in meters
 pub const CHUNK_SIZE: f32 = 16.;
 
 #[derive(Default)]
@@ -95,20 +96,54 @@ fn populate_new_chunks(
     mut commands: Commands,
 ) {
     for (chunk, entity) in chunks.iter() {
-        let mesh = Plane { size: CHUNK_SIZE, subdivisions: 0 }.into();
+        let mesh = shape::Plane { size: CHUNK_SIZE, subdivisions: 0 }.into();
 
-        commands.entity(entity).insert((
-            Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh).unwrap(),
-            PbrBundle {
-                transform: Transform::from_translation(Vec3::new(
-                    chunk.x as f32 * CHUNK_SIZE,
-                    0.,
-                    chunk.z as f32 * CHUNK_SIZE,
-                )),
-                mesh: meshes.add(mesh),
-                material: assets.ground_material.clone(),
-                ..default()
-            },
-        ));
+        commands.entity(entity).insert(SpatialBundle {
+            transform: Transform::from_translation(Vec3::new(
+                chunk.x as f32 * CHUNK_SIZE,
+                0.,
+                chunk.z as f32 * CHUNK_SIZE,
+            )),
+            ..default()
+        });
+
+        commands
+            .spawn((
+                Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh).unwrap(),
+                PbrBundle {
+                    mesh: meshes.add(mesh),
+                    material: assets.ground_material.clone(),
+                    ..default()
+                },
+            ))
+            .set_parent(entity);
+
+        if chunk.x <= 0 && chunk.z == 0 {
+            let mesh = shape::Box {
+                min_x: -6.5,
+                min_y: -1.,
+                min_z: -6.5,
+                max_x: 6.5,
+                max_y: 0.5,
+                max_z: 6.5,
+            }
+            .into();
+
+            commands
+                .spawn((
+                    Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh).unwrap(),
+                    PbrBundle {
+                        transform: Transform::from_translation(Vec3::new(
+                            chunk.x as f32 * CHUNK_SIZE,
+                            0.,
+                            chunk.z as f32 * CHUNK_SIZE,
+                        )),
+                        mesh: meshes.add(mesh),
+                        material: assets.concrete_material.clone(),
+                        ..default()
+                    },
+                ))
+                .set_parent(entity);
+        }
     }
 }

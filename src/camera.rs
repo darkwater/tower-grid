@@ -10,7 +10,6 @@ impl Plugin for CameraPlugin {
         app.add_plugins(AtmospherePlugin)
             .add_systems(Startup, init)
             .add_systems(Update, (update_main_target, update_dolly_rigs));
-        // .add_systems(Update, update);
     }
 }
 
@@ -41,8 +40,7 @@ fn init(mut commands: Commands) {
             rig: CameraRig::builder()
                 .with(Position::new(Vec3::ZERO))
                 .with(YawPitch::new().pitch_degrees(-80.))
-                .with(Smooth::new_position(0.8))
-                .with(Smooth::new_rotation(0.3))
+                .with(Smooth::new_position_rotation(0.8, 0.3))
                 .with(Arm::new(Vec3::Z * 25.0))
                 .build(),
         },
@@ -52,11 +50,20 @@ fn init(mut commands: Commands) {
 fn update_main_target(
     target: Query<&Transform, With<MainCameraTarget>>,
     mut camera: Query<&mut DollyRig, With<MainCamera>>,
+    keys: Res<Input<KeyCode>>,
 ) {
     let target = target.single();
     let mut camera = camera.single_mut();
 
     camera.rig.driver_mut::<Position>().position = target.translation;
+
+    if keys.pressed(KeyCode::E) {
+        camera.rig.driver_mut::<YawPitch>().pitch_degrees = -20.;
+        camera.rig.driver_mut::<Arm>().offset = Vec3::Z * 5.0;
+    } else {
+        camera.rig.driver_mut::<YawPitch>().pitch_degrees = -80.;
+        camera.rig.driver_mut::<Arm>().offset = Vec3::Z * 25.0;
+    };
 }
 
 fn update_dolly_rigs(mut query: Query<(&mut Transform, &mut DollyRig)>, time: Res<Time>) {

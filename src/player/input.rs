@@ -2,12 +2,14 @@ use bevy::prelude::*;
 use bevy_tnua::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use super::Player;
+use super::{cursor::PlayerCursor, Player};
+use crate::{hud::build_menu::BuildMenu, world_tile::WorldTile};
 
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
 pub enum Action {
     Move,
     Jump,
+    ContextMenu,
 }
 
 pub fn manager_bundle() -> InputManagerBundle<Action> {
@@ -24,27 +26,28 @@ pub fn manager_bundle() -> InputManagerBundle<Action> {
                 Action::Move,
             )
             .insert(KeyCode::Space, Action::Jump)
+            .insert(MouseButton::Right, Action::ContextMenu)
             .build(),
     }
 }
 
 pub fn move_player(
-    mut query: Query<(&Player, &mut TnuaController, &ActionState<Action>)>,
+    mut player: Query<(&mut TnuaController, &ActionState<Action>), With<Player>>,
     // time: Res<Time>,
 ) {
-    for (player, mut controller, action_state) in query.iter_mut() {
+    for (mut controller, action_state) in player.iter_mut() {
         let mut axis_pair = action_state.axis_pair(Action::Move).unwrap();
         axis_pair.clamp_length(1.);
 
         let direction = Vec3::new(axis_pair.x(), 0., -axis_pair.y());
 
         controller.basis(TnuaBuiltinWalk {
-            desired_velocity: direction * player.walk_speed,
+            desired_velocity: direction * Player::WALK_SPEED,
             desired_forward: direction,
 
             // Must be larger than the height of the entity's center from the bottom of its
             // collider, or else the character will not float and Tnua will not work properly:
-            float_height: 1.,
+            float_height: Player::HEIGHT / 2. + 0.1,
 
             acceleration: 80.,
 
@@ -65,26 +68,28 @@ pub fn move_player(
     }
 }
 
-// pub fn move_player(
-//     mut player: Query<(&mut KinematicCharacterController, &ActionState<Action>), With<Player>>,
-//     time: Res<Time>,
-// ) {
-//     let (mut kcc, action_state) = player.single_mut();
+pub fn hud_actions(
+    player: Query<&ActionState<Action>, With<Player>>,
+    build_menu: Query<Entity, With<BuildMenu>>,
+    cursor: Query<&PlayerCursor>,
+    mut commands: Commands,
+) {
+    for action_state in player.iter() {
+        if action_state.just_pressed(Action::ContextMenu) {
+            let cursor = cursor.get_single().unwrap();
 
-//     let translation = kcc.translation.get_or_insert_default();
+            if let Some(ref raycast) = cursor.raycast {
+                commands.spawn(BuildMenu::new(
+                    cursor.screen_pos,
+                    WorldTile::from_vec3(raycast.1.point),
+                ));
+            }
+        }
 
-//     if action_state.pressed(Action::Move) {
-//         let mut axis_pair = action_state.axis_pair(Action::Move).unwrap();
-//         axis_pair.clamp_length(1.);
-
-//         *translation += Vec3::new(
-//             axis_pair.x() * time.delta_seconds() * 5.,
-//             0.,
-//             axis_pair.y() * time.delta_seconds() * 5.,
-//         );
-//     }
-
-//     if action_state.just_pressed(Action::Jump) {
-//         translation.y += 1.;
-//     }
-// }
+        if action_state.just_released(Action::ContextMenu) {
+            if let Ok(build_menu) = build_menu.get_single() {
+                commands.entity(build_menu).despawn_recursive();
+            }
+        }
+    }
+}
